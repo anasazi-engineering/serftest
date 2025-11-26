@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/hashicorp/serf/serf"
 )
@@ -22,12 +23,24 @@ func main() {
 	config.NodeName = *nodeName
 	config.MemberlistConfig.BindAddr = "127.0.0.1"
 	config.MemberlistConfig.BindPort = *bindPort
+	isResponder := config.NodeName == "agent007"
+
+	// Channel stuff
+	eventCh := make(chan serf.Event, 256)
+	config.EventCh = eventCh
+
+	if isResponder {
+		log.Println("This node is set as responder")
+	} else {
+		log.Println("This node is a requester")
+	}
 
 	// Create a new Serf instance
 	serfAgent, err := serf.Create(config)
 	if err != nil {
 		log.Fatalf("Failed to create Serf agent: %v", err)
 	}
+	defer serfAgent.Leave()
 	defer serfAgent.Shutdown()
 
 	fmt.Printf("Serf agent '%s' started successfully\n", config.NodeName)
@@ -48,11 +61,21 @@ func main() {
 		fmt.Println("Running as standalone agent. Pass an address to join a cluster.")
 	}
 
+	// Wait a moment for the cluster to stabilize
+	time.Sleep(2 * time.Second)
+
 	// Display current members
 	members := serfAgent.Members()
 	fmt.Printf("\nCurrent cluster members (%d):\n", len(members))
 	for _, member := range members {
 		fmt.Printf("  - %s (%s)\n", member.Name, member.Addr)
+	}
+
+	// Start responder or requester based on node name
+	if isResponder {
+		go responder(eventCh)
+	} else {
+		go requester(serfAgent)
 	}
 
 	// Wait for interrupt signal to gracefully shutdown
@@ -62,4 +85,68 @@ func main() {
 	<-sigCh
 
 	fmt.Println("\nShutting down gracefully...")
+}
+
+func responder(eventCh chan serf.Event) {
+	for {
+		select {
+		case e := <-eventCh:
+			if e.EventType() == serf.EventQuery {
+				query := e.(*serf.Query)
+
+				// We only respond to the specific query name
+				if query.Name == "provisioner-OTP" {
+					log.Printf("Received query from %s", query.Name)
+
+					// Generate a one-time token (for demonstration, using a static token)
+					token := "ONE-TIME-TOKEN-12345"
+
+					// Respond to the query
+					//err := serfAgent.Respond(query.ID, []byte(token))
+					err := query.Respond([]byte(token))
+					if err != nil {
+						log.Printf("Failed to respond to query: %v", err)
+					} else {
+						log.Printf("Responded to query '%s' with token", query.Name)
+					}
+				}
+			}
+		}
+	}
+}
+
+func requester(agent *serf.Serf) {
+	// Create query for OTP
+	queryName := "provisioner-OTP"
+	queryPayload := []byte("Gimme OTP!")
+
+	// Send the query to the entire cluster
+	resp, err := agent.Query(
+		queryName,
+		queryPayload,
+		&serf.QueryParam{
+			FilterNodes: []string{}, // Target all members
+			Timeout:     5 * time.Second,
+		},
+	)
+
+	if err != nil {
+		log.Fatalf("Error executing query: %v", err)
+	}
+
+	// --- Process Responses ---
+	fmt.Println("\n## Processing Query Responses:")
+
+	for response := range resp.ResponseCh() {
+		token := string(response.Payload)
+
+		fmt.Printf("Response From Node: **%s**\n", response.From)
+
+		if token == "DENIED: Token already issued" {
+			fmt.Printf("   🚫 Status: **Denied!** Token was already claimed by another requester.\n")
+		} else {
+			fmt.Printf("   ✅ Status: **Success!** Received Token: **%s**\n", token)
+		}
+	}
+
 }
