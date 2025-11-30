@@ -50,6 +50,7 @@ func main() {
 	joinArgs := flag.Args()
 	log.Println("Length of 'flag.Args()': ", len(joinArgs))
 	if len(joinArgs) > 0 {
+		log.Println("Joining an existing cluster...")
 		joinAddr := joinArgs[0]
 		_, err := serfAgent.Join([]string{joinAddr}, true)
 		if err != nil {
@@ -58,7 +59,7 @@ func main() {
 			fmt.Printf("Successfully joined cluster at %s\n", joinAddr)
 		}
 	} else {
-		fmt.Println("Running as standalone agent. Pass an address to join a cluster.")
+		fmt.Println("Running as standalone agent...waiting for others to join.")
 	}
 
 	// Wait a moment for the cluster to stabilize
@@ -143,9 +144,9 @@ func requester(agent *serf.Serf) {
 		fmt.Printf("Response From Node: **%s**\n", response.From)
 
 		if token == "DENIED: Token already issued" {
-			fmt.Printf("   🚫 Status: **Denied!** Token was already claimed by another requester.\n")
+			fmt.Printf("   Status: **Denied!** Token was already claimed by another requester.\n")
 		} else {
-			fmt.Printf("   ✅ Status: **Success!** Received Token: **%s**\n", token)
+			fmt.Printf("   Status: **Success!** Received Token: **%s**\n", token)
 		}
 	}
 
