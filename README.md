@@ -11,24 +11,35 @@ go mod tidy
 
 ## Usage
 
-### Run as standalone agent:
+	// TODO: this is more of a note. To get to run on different ,addrs, you need to set the
+	// BindAddr to the specific IP of the interface you want to use, not 127.0.0.1. Same on
+	// other nodes. For testing locally, you can use different ports on localhost.
+
+### Run locally as a BootBox:
+
 ```bash
 $ ./serf1
 ```
 
+### Run locally as a Worker and join BootBox cluster
 
-For example, to join a cluster on the same machine, with an agent at `127.0.0.1:7946`, node name of 'mike', and using port '7947':
+For example, to join a cluster on the same machine, with an agent at `127.0.0.1:7946`, you must use a different port number than the BootBox.
 ```bash
-$ ./serf1 -p 7947 -n mike 127.0.0.1:7946
+$ ./serf1 -t worker -p 7947 -n worker001 127.0.0.1:7946
 ```
 
-## Testing LOCALLY with Multiple Agents
+### Run BootBox on external interface
 
-To test clustering locally, you must change the port in line 18 and recompile. Then open terminal for each custom binary with different hardcoded port. I assuming that agents on different nodes can connect with the same port?
+If running BootBox and Workers on separate devices, then agent must bind to external network interfaces, not localhost.
 
-## Features
+```bash
+$ ./serf1 -a 192.168.1.35
+```
 
-- Creates a Serf agent with configurable node name
-- Joins existing clusters when provided an address
-- Displays current cluster members
-- Graceful shutdown on Ctrl+C
+### Connect Worker to BootBox on separate device
+
+If running BootBox and Workers on separate devices, then agent must bind to external network interfaces, not localhost.
+
+```bash
+$ ./serf1 -a 192.168.1.22 -t worker -n worker001 192.168.1.35:7946
+```

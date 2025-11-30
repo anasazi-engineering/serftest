@@ -15,7 +15,10 @@ import (
 func main() {
 	// Parse command line flags
 	bindPort := flag.Int("p", 7946, "Port to bind the Serf agent to")
-	nodeName := flag.String("n", "agent007", "Name of the Serf agent")
+	bindAddr := flag.String("a", "127.0.0.1", "Address to bind the Serf agent to")
+	nodeName := flag.String("n", "bootbox001", "Name of the Serf agent") // TODO: Use AgentID
+	nodeType := flag.String("t", "bootbox", "Type of the Serf agent (bootbox or worker)")
+
 	flag.Parse()
 
 	// TODO: this is more of a note. To get to run on different ,addrs, you need to set the
@@ -25,19 +28,12 @@ func main() {
 	// Create Serf configuration
 	config := serf.DefaultConfig()
 	config.NodeName = *nodeName
-	config.MemberlistConfig.BindAddr = "192.168.1.35" // Change to your machine's IP address or 127.0.0.1 for localhost
-	config.MemberlistConfig.BindPort = *bindPort      // You use the same port when on different machines
-	isResponder := config.NodeName == "agent007"
+	config.MemberlistConfig.BindAddr = *bindAddr // Change to your machine's IP address or 127.0.0.1 for localhost
+	config.MemberlistConfig.BindPort = *bindPort // You use the same port when on different machines
 
 	// Channel stuff
 	eventCh := make(chan serf.Event, 256)
 	config.EventCh = eventCh
-
-	if isResponder {
-		log.Println("This node is set as responder")
-	} else {
-		log.Println("This node is a requester")
-	}
 
 	// Create a new Serf instance
 	serfAgent, err := serf.Create(config)
@@ -46,9 +42,6 @@ func main() {
 	}
 	defer serfAgent.Leave()
 	defer serfAgent.Shutdown()
-
-	fmt.Printf("Serf agent '%s' started successfully\n", config.NodeName)
-	fmt.Printf("Listening on %s:%d\n", config.MemberlistConfig.BindAddr, config.MemberlistConfig.BindPort)
 
 	// Join existing cluster if specified
 	joinArgs := flag.Args()
@@ -63,24 +56,17 @@ func main() {
 			fmt.Printf("Successfully joined cluster at %s\n", joinAddr)
 		}
 	} else {
-		fmt.Println("Running as standalone agent...waiting for others to join.")
+		fmt.Println("Running as BootBox...waiting for workers to join.")
 	}
 
 	// Wait a moment for the cluster to stabilize
 	time.Sleep(2 * time.Second)
 
-	// Display current members
-	members := serfAgent.Members()
-	fmt.Printf("\nCurrent cluster members (%d):\n", len(members))
-	for _, member := range members {
-		fmt.Printf("  - %s (%s)\n", member.Name, member.Addr)
-	}
-
 	// Start responder or requester based on node name
-	if isResponder {
-		go responder(eventCh)
-	} else {
+	if *nodeType == "worker" {
 		go requester(serfAgent)
+	} else {
+		go responder(eventCh)
 	}
 
 	// Wait for interrupt signal to gracefully shutdown
