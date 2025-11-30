@@ -18,11 +18,15 @@ func main() {
 	nodeName := flag.String("n", "agent007", "Name of the Serf agent")
 	flag.Parse()
 
+	// TODO: this is more of a note. To get to run on different ,addrs, you need to set the
+	// BindAddr to the specific IP of the interface you want to use, not 127.0.0.1. Same on
+	// other nodes. For testing locally, you can use different ports on localhost.
+
 	// Create Serf configuration
 	config := serf.DefaultConfig()
 	config.NodeName = *nodeName
-	config.MemberlistConfig.BindAddr = "127.0.0.1"
-	config.MemberlistConfig.BindPort = *bindPort
+	config.MemberlistConfig.BindAddr = "192.168.1.35" // Change to your machine's IP address or 127.0.0.1 for localhost
+	config.MemberlistConfig.BindPort = *bindPort      // You use the same port when on different machines
 	isResponder := config.NodeName == "agent007"
 
 	// Channel stuff
