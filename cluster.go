@@ -68,6 +68,8 @@ func (c *Cluster) init(outputCh chan string) {
 	// If device is worker, run requester to get token, else run responder indefinitely
 	if c.Config.NodeType == "worker" {
 		outputCh <- requester(serfAgent)
+		serfAgent.Leave()
+		serfAgent.Shutdown()
 		log.Println("Worker node finished! Exiting init.")
 	} else {
 		responder(eventCh) // blocks indefinitely
