@@ -18,6 +18,8 @@ func main() {
 		NodeType: *flag.String("t", "bootbox", "Type of the Serf agent (bootbox or worker)"), // TODO: from config
 	}
 	flag.Parse()
+	fmt.Printf("Starting Serf agent with name: %s, type: %s, address: %s:%d\n",
+		c.Config.NodeName, c.Config.NodeType, c.Config.BindAddr, c.Config.BindPort)
 
 	// Start and/or join cluster
 	outputCh := make(chan string, 1)
