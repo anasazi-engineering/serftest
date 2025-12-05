@@ -43,3 +43,9 @@ If running BootBox and Workers on separate devices, then agent must bind to exte
 ```bash
 $ ./serf1 -a 192.168.1.22 -t worker -n worker001 192.168.1.35:7946
 ```
+
+New refactored verion of agent. Worker is hard coded for BootBox to be running on SapSkull: 192.168.1.35:7946. Note this assumes the worker node's IP is 192.168.1.22. If not, change below to correct IP.
+
+```bash
+$ ./serf1 -a 192.168.1.22 -t worker -n worker001
+```

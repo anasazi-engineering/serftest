@@ -3,141 +3,33 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
-
-	"github.com/hashicorp/serf/serf"
 )
 
 func main() {
-	// Parse command line flags
-	bindPort := flag.Int("p", 7946, "Port to bind the Serf agent to")
-	bindAddr := flag.String("a", "127.0.0.1", "Address to bind the Serf agent to")
-	nodeName := flag.String("n", "bootbox001", "Name of the Serf agent") // TODO: Use AgentID
-	nodeType := flag.String("t", "bootbox", "Type of the Serf agent (bootbox or worker)")
-
+	// Command line flags
+	var c Cluster
+	c.Config = ClusterConfig{
+		BindPort: *flag.Int("p", 7946, "Port to bind the Serf agent to"),                     // TODO: change to configurable port
+		BindAddr: *flag.String("a", "127.0.0.1", "Address to bind the Serf agent to"),        // TODO: discover address
+		NodeName: *flag.String("n", "bootbox001", "Name of the Serf agent"),                  // TODO: Use AgentID
+		NodeType: *flag.String("t", "bootbox", "Type of the Serf agent (bootbox or worker)"), // TODO: from config
+	}
 	flag.Parse()
 
-	// TODO: this is more of a note. To get to run on different ,addrs, you need to set the
-	// BindAddr to the specific IP of the interface you want to use, not 127.0.0.1. Same on
-	// other nodes. For testing locally, you can use different ports on localhost.
-
-	// Create Serf configuration
-	config := serf.DefaultConfig()
-	config.NodeName = *nodeName
-	config.MemberlistConfig.BindAddr = *bindAddr // Change to your machine's IP address or 127.0.0.1 for localhost
-	config.MemberlistConfig.BindPort = *bindPort // You use the same port when on different machines
-
-	// Channel stuff
-	eventCh := make(chan serf.Event, 256)
-	config.EventCh = eventCh
-
-	// Create a new Serf instance
-	serfAgent, err := serf.Create(config)
-	if err != nil {
-		log.Fatalf("Failed to create Serf agent: %v", err)
-	}
-	defer serfAgent.Leave()
-	defer serfAgent.Shutdown()
-
-	// Join existing cluster if specified
-	joinArgs := flag.Args()
-	log.Println("Length of 'flag.Args()': ", len(joinArgs))
-	if len(joinArgs) > 0 {
-		log.Println("Joining an existing cluster...")
-		joinAddr := joinArgs[0]
-		_, err := serfAgent.Join([]string{joinAddr}, true)
-		if err != nil {
-			log.Printf("Failed to join cluster at %s: %v", joinAddr, err)
-		} else {
-			fmt.Printf("Successfully joined cluster at %s\n", joinAddr)
-		}
-	} else {
-		fmt.Println("Running as BootBox...waiting for workers to join.")
+	// Start and/or join cluster
+	outputCh := make(chan string, 1)
+	c.init(outputCh)
+	if c.Config.NodeType == "worker" {
+		fmt.Println("Worker node running...waiting for token response")
+		token := <-outputCh // block here on channel
+		fmt.Printf("Worker node received token: %s\n", token)
 	}
 
-	// Wait a moment for the cluster to stabilize
-	time.Sleep(2 * time.Second)
-
-	// Start responder or requester based on node name
-	if *nodeType == "worker" {
-		go requester(serfAgent)
-	} else {
-		go responder(eventCh)
-	}
-
-	// Wait for interrupt signal to gracefully shutdown
-	fmt.Println("\nPress Ctrl+C to stop the agent")
+	fmt.Println("\nEnd of main(). Press Ctrl+C to stop the agent")
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	<-sigCh
-
-	fmt.Println("\nShutting down gracefully...")
-}
-
-func responder(eventCh chan serf.Event) {
-	for {
-		select {
-		case e := <-eventCh:
-			if e.EventType() == serf.EventQuery {
-				query := e.(*serf.Query)
-
-				// We only respond to the specific query name
-				if query.Name == "provisioner-OTP" {
-					log.Printf("Received query from %s", query.Name)
-
-					// Generate a one-time token (for demonstration, using a static token)
-					token := "ONE-TIME-TOKEN-12345"
-
-					// Respond to the query
-					//err := serfAgent.Respond(query.ID, []byte(token))
-					err := query.Respond([]byte(token))
-					if err != nil {
-						log.Printf("Failed to respond to query: %v", err)
-					} else {
-						log.Printf("Responded to query '%s' with token", query.Name)
-					}
-				}
-			}
-		}
-	}
-}
-
-func requester(agent *serf.Serf) {
-	// Create query for OTP
-	queryName := "provisioner-OTP"
-	queryPayload := []byte("Gimme OTP!")
-
-	// Send the query to the entire cluster
-	resp, err := agent.Query(
-		queryName,
-		queryPayload,
-		&serf.QueryParam{
-			FilterNodes: []string{}, // Target all members
-			Timeout:     5 * time.Second,
-		},
-	)
-
-	if err != nil {
-		log.Fatalf("Error executing query: %v", err)
-	}
-
-	// --- Process Responses ---
-	fmt.Println("\n## Processing Query Responses:")
-
-	for response := range resp.ResponseCh() {
-		token := string(response.Payload)
-
-		fmt.Printf("Response From Node: **%s**\n", response.From)
-
-		if token == "DENIED: Token already issued" {
-			fmt.Printf("   Status: **Denied!** Token was already claimed by another requester.\n")
-		} else {
-			fmt.Printf("   Status: **Success!** Received Token: **%s**\n", token)
-		}
-	}
-
 }
