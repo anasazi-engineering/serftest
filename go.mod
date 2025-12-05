@@ -2,7 +2,10 @@ module serf1
 
 go 1.21
 
-require github.com/hashicorp/serf v0.10.1
+require (
+	github.com/hashicorp/mdns v1.0.4
+	github.com/hashicorp/serf v0.10.1
+)
 
 require (
 	github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da // indirect

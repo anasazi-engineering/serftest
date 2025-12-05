@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
+	"os"
 	"time"
 
+	"github.com/hashicorp/mdns"
 	"github.com/hashicorp/serf/serf"
 )
 
@@ -22,6 +25,12 @@ type Cluster struct {
 	SerfAgent *serf.Serf
 	EventCh   chan serf.Event
 }
+
+const (
+	serviceName = "_mdnsdemo._tcp"
+	domain      = "local."
+	port        = 8080
+)
 
 func (c *Cluster) init(outputCh chan string, ctx context.Context) {
 	// Create Serf configuration
@@ -46,12 +55,18 @@ func (c *Cluster) init(outputCh chan string, ctx context.Context) {
 	log.Printf("Device Type: %s\n", c.Config.NodeType)
 	if c.Config.NodeType == "worker" {
 		log.Println("Joining an existing cluster...")
-		joinAddr := "192.168.1.35:7946" // TODO: replace w/ broadcast address
+		// Discover BootBox address via mDNS
+		serfAddress := receive(ctx)
+		log.Printf("Discovered BootBox at address: %s\n", serfAddress) // TODO: debug message
+		//joinAddr := "192.168.1.35:7946"
+		joinAddr := fmt.Sprintf("%s:%d", serfAddress, c.Config.BindPort)
 		_, err := serfAgent.Join([]string{joinAddr}, true)
 		if err != nil {
 			log.Printf("Failed to join cluster at %s: %v", joinAddr, err)
 		}
 	} else {
+		// Launch BootBox mDNS broadcaster
+		go broadcast(ctx)
 		fmt.Println("Running as BootBox...waiting for workers to join.") // TODO: debug message
 	}
 
@@ -66,8 +81,6 @@ func (c *Cluster) init(outputCh chan string, ctx context.Context) {
 	} else {
 		responder(eventCh) // blocks indefinitely
 	}
-
-	<-ctx.Done() // TOO: not really needed here. Need to add to broadcaster().
 }
 
 func responder(eventCh chan serf.Event) {
@@ -123,4 +136,125 @@ func requester(agent *serf.Serf) string {
 		}
 	}
 	return ""
+}
+
+// broadcast() starts an mDNS service to advertise a message
+func broadcast(ctx context.Context) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Printf("Failed to get hostname: %v", err)
+		hostname = "unknown-host"
+	}
+
+	message := "Provisioner_Bootbox_OTP"
+
+	// Setup service info with TXT records containing our message
+	service, err := mdns.NewMDNSService(
+		hostname,
+		serviceName,
+		domain,
+		"",
+		port,
+		getPhysIPs(),
+		[]string{message},
+	)
+	if err != nil {
+		log.Printf("Failed to create mDNS service: %v\n", err)
+	}
+
+	// Create the mDNS server
+	server, err := mdns.NewServer(&mdns.Config{Zone: service})
+	if err != nil {
+		log.Printf("Failed to create mDNS server: %v\n", err)
+	}
+	defer server.Shutdown()
+
+	// Keep broadcasting until context is cancelled
+	<-ctx.Done()
+	log.Println("Stopping broadcast on received signal")
+}
+
+// receive() searches for mDNS services and prints discovered messages
+func receive(ctx context.Context) string {
+	log.Printf("Searching for mDNS services: %s", serviceName)
+
+	// Create a channel to receive service entries
+	entriesCh := make(chan *mdns.ServiceEntry, 10)
+	complete := make(chan string, 1)
+
+	// Keep checking discovered entries for BootBox service
+	go func() {
+		for entry := range entriesCh {
+			if entry.Info == "Provisioner_Bootbox_OTP" {
+				complete <- entry.AddrV4.String()
+			}
+		}
+	}()
+
+	// Continuously search for services
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case ipAddress := <-complete:
+			close(entriesCh)
+			return ipAddress
+		case <-ctx.Done():
+			close(entriesCh)
+			return ""
+		case <-ticker.C:
+			mdns.Lookup(serviceName, entriesCh)
+		}
+	}
+}
+
+// getPhysIPs() returns IP addresses for physical network interfaces,
+// filtering out loopback, virtual, and down interfaces
+func getPhysIPs() []net.IP {
+	interfaces, _ := net.Interfaces()
+	var result []net.IP
+
+	// Loop through all network interfaces
+	for _, iface := range interfaces {
+		// Skip loopback interfaces
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		// Skip interfaces that are down
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+
+		// Filter out virtual interfaces (docker, virtual box, vmware, etc.)
+		name := iface.Name
+		if len(name) >= 6 && (name[:6] == "docker" || name[:3] == "vir" ||
+			name[:4] == "veth" || name[:2] == "br" || name[:3] == "vmn") {
+			continue
+		}
+
+		// Get addresses for this interface
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		// Build list of IPv4IPs
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			// Only include IPv4 addresses
+			if ip != nil && ip.To4() != nil {
+				result = append(result, ip)
+			}
+		}
+	}
+
+	return result
 }
