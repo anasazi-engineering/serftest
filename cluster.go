@@ -23,11 +23,6 @@ type Cluster struct {
 }
 
 func (c *Cluster) init(outputCh chan string) {
-
-	// TODO: this is more of a note. To get to run on different ,addrs, you need to set the
-	// BindAddr to the specific IP of the interface you want to use, not 127.0.0.1. Same on
-	// other nodes. For testing locally, you can use different ports on localhost.
-
 	// Create Serf configuration
 	config := serf.DefaultConfig()
 	config.NodeName = c.Config.NodeName
@@ -47,11 +42,10 @@ func (c *Cluster) init(outputCh chan string) {
 	defer serfAgent.Shutdown()
 
 	// Join existing cluster if Worker node
-	//joinArgs := flag.Args()
 	log.Printf("Device Type: %s\n", c.Config.NodeType)
 	if c.Config.NodeType == "worker" {
 		log.Println("Joining an existing cluster...")
-		joinAddr := "192.168.1.35:7946" //joinArgs[0] TODO: replace w/ broadcast address
+		joinAddr := "192.168.1.35:7946" // TODO: replace w/ broadcast address
 		_, err := serfAgent.Join([]string{joinAddr}, true)
 		if err != nil {
 			log.Printf("Failed to join cluster at %s: %v", joinAddr, err)
@@ -75,8 +69,6 @@ func (c *Cluster) init(outputCh chan string) {
 
 func responder(eventCh chan serf.Event) {
 	for {
-		//select {
-		//case e := <-eventCh:
 		e := <-eventCh
 		if e.EventType() == serf.EventQuery {
 			query := e.(*serf.Query)
@@ -87,17 +79,9 @@ func responder(eventCh chan serf.Event) {
 
 				// TODO: get token from API server
 				token := "ONE-TIME-TOKEN-12345"
-
-				// Respond to the query
-				err := query.Respond([]byte(token))
-				if err != nil {
-					log.Printf("Failed to respond to query: %v", err)
-				} else {
-					log.Printf("Responded to query '%s' with token", query.Name)
-				}
+				query.Respond([]byte(token))
 			}
 		}
-		//}
 	}
 }
 
