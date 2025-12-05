@@ -70,7 +70,8 @@ func (c *Cluster) init(outputCh chan string) {
 		outputCh <- requester(serfAgent)
 		log.Println("Worker node finished! Exiting init.")
 	} else {
-		go responder(eventCh)
+		responder(eventCh) // blocks indefinitely
+		log.Println("BootBox node finished! Exiting init.")
 	}
 }
 
