@@ -11,13 +11,18 @@ import (
 func main() {
 	// Command line flags
 	var c Cluster
-	c.Config = ClusterConfig{
-		BindPort: *flag.Int("p", 7946, "Port to bind the Serf agent to"),                     // TODO: change to configurable port
-		BindAddr: *flag.String("a", "127.0.0.1", "Address to bind the Serf agent to"),        // TODO: discover address
-		NodeName: *flag.String("n", "bootbox001", "Name of the Serf agent"),                  // TODO: Use AgentID
-		NodeType: *flag.String("t", "bootbox", "Type of the Serf agent (bootbox or worker)"), // TODO: from config
-	}
+	bindPort := flag.Int("p", 7946, "Port to bind the Serf agent to")
+	bindAddr := flag.String("a", "127.0.0.1", "Address to bind the Serf agent to")
+	nodeName := flag.String("n", "bootbox001", "Name of the Serf agent")
+	nodeType := flag.String("t", "bootbox", "Type of the Serf agent (bootbox or worker)")
 	flag.Parse()
+	c.Config = ClusterConfig{
+		BindPort: *bindPort, // TODO: change to configurable port
+		BindAddr: *bindAddr, // TODO: discover address
+		NodeName: *nodeName, // TODO: Use AgentID
+		NodeType: *nodeType, // TODO: from config
+	}
+
 	fmt.Printf("Starting Serf agent with name: %s, type: %s, address: %s:%d\n",
 		c.Config.NodeName, c.Config.NodeType, c.Config.BindAddr, c.Config.BindPort)
 
