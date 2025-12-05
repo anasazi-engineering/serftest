@@ -55,8 +55,6 @@ func (c *Cluster) init(outputCh chan string) {
 		_, err := serfAgent.Join([]string{joinAddr}, true)
 		if err != nil {
 			log.Printf("Failed to join cluster at %s: %v", joinAddr, err)
-		} else {
-			fmt.Printf("Successfully joined cluster at %s\n", joinAddr)
 		}
 	} else {
 		fmt.Println("Running as BootBox...waiting for workers to join.") // TODO: debug message
@@ -70,38 +68,36 @@ func (c *Cluster) init(outputCh chan string) {
 		outputCh <- requester(serfAgent)
 		serfAgent.Leave()
 		serfAgent.Shutdown()
-		log.Println("Worker node finished! Exiting init.")
 	} else {
 		responder(eventCh) // blocks indefinitely
-		log.Println("BootBox node finished! Exiting init.")
 	}
 }
 
 func responder(eventCh chan serf.Event) {
 	for {
-		select {
-		case e := <-eventCh:
-			if e.EventType() == serf.EventQuery {
-				query := e.(*serf.Query)
+		//select {
+		//case e := <-eventCh:
+		e := <-eventCh
+		if e.EventType() == serf.EventQuery {
+			query := e.(*serf.Query)
 
-				// We only respond to the specific query name
-				if query.Name == "provisioner-OTP" {
-					log.Printf("Received query from %s", query.Name)
+			// We only respond to the specific query name
+			if query.Name == "provisioner-OTP" {
+				log.Printf("Received query from %s", query.Name)
 
-					// TODO: get token from API server
-					token := "ONE-TIME-TOKEN-12345"
+				// TODO: get token from API server
+				token := "ONE-TIME-TOKEN-12345"
 
-					// Respond to the query
-					//err := serfAgent.Respond(query.ID, []byte(token))
-					err := query.Respond([]byte(token))
-					if err != nil {
-						log.Printf("Failed to respond to query: %v", err)
-					} else {
-						log.Printf("Responded to query '%s' with token", query.Name)
-					}
+				// Respond to the query
+				err := query.Respond([]byte(token))
+				if err != nil {
+					log.Printf("Failed to respond to query: %v", err)
+				} else {
+					log.Printf("Responded to query '%s' with token", query.Name)
 				}
 			}
 		}
+		//}
 	}
 }
 
