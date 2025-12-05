@@ -79,28 +79,35 @@ func (c *Cluster) init(outputCh chan string, ctx context.Context) {
 		serfAgent.Leave()
 		serfAgent.Shutdown()
 	} else {
-		responder(eventCh) // blocks indefinitely
+		responder(eventCh, ctx) // blocks indefinitely
 	}
 }
 
-func responder(eventCh chan serf.Event) {
+// responder() listens for incoming queries and responds with a one-time token
+func responder(eventCh chan serf.Event, ctx context.Context) {
 	for {
-		e := <-eventCh
-		if e.EventType() == serf.EventQuery {
-			query := e.(*serf.Query)
+		// Check if context is done
+		select {
+		case <-ctx.Done():
+			log.Println("Stopping responder on received signal")
+			return
+		case e := <-eventCh:
+			if e.EventType() == serf.EventQuery {
+				query := e.(*serf.Query)
+				// We only respond to the specific query name
+				if query.Name == "provisioner-OTP" {
+					log.Printf("Received query from %s", query.Name)
 
-			// We only respond to the specific query name
-			if query.Name == "provisioner-OTP" {
-				log.Printf("Received query from %s", query.Name)
-
-				// TODO: get token from API server
-				token := "ONE-TIME-TOKEN-12345"
-				query.Respond([]byte(token))
+					// TODO: get token from API server
+					token := "ONE-TIME-TOKEN-12345"
+					query.Respond([]byte(token))
+				}
 			}
 		}
 	}
 }
 
+// requester() sends a query to the cluster requesting a one-time token
 func requester(agent *serf.Serf) string {
 	// Create query for OTP
 	queryName := "provisioner-OTP"
