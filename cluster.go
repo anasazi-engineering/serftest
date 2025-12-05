@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -22,7 +23,7 @@ type Cluster struct {
 	EventCh   chan serf.Event
 }
 
-func (c *Cluster) init(outputCh chan string) {
+func (c *Cluster) init(outputCh chan string, ctx context.Context) {
 	// Create Serf configuration
 	config := serf.DefaultConfig()
 	config.NodeName = c.Config.NodeName
@@ -65,6 +66,8 @@ func (c *Cluster) init(outputCh chan string) {
 	} else {
 		responder(eventCh) // blocks indefinitely
 	}
+
+	<-ctx.Done() // TOO: not really needed here. Need to add to broadcaster().
 }
 
 func responder(eventCh chan serf.Event) {
