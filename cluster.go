@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"time"
@@ -48,8 +47,8 @@ func (c *Cluster) init(outputCh chan string) {
 	defer serfAgent.Shutdown()
 
 	// Join existing cluster if Worker node
-	joinArgs := flag.Args()
-	log.Println("Length of 'flag.Args()': ", len(joinArgs))
+	//joinArgs := flag.Args()
+	log.Printf("Device Type: %s\n", c.Config.NodeType)
 	if c.Config.NodeType == "worker" {
 		log.Println("Joining an existing cluster...")
 		joinAddr := "192.168.1.35:7946" //joinArgs[0] TODO: replace w/ broadcast address
