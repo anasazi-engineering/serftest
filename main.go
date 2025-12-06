@@ -38,9 +38,9 @@ func main() {
 		fmt.Printf("Worker node received token: %s\n", token)
 	}
 
-	// The End TODO: Can I replace below with ctx.Done()?
+	// The End
 	fmt.Println("\nEnd of main(). Press Ctrl+C to stop the agent")
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	<-sigCh
+	// sigCh := make(chan os.Signal, 1)
+	// signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	<-ctx.Done()
 }

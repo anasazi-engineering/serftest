@@ -26,6 +26,7 @@ type Cluster struct {
 	EventCh   chan serf.Event
 }
 
+// TODO: how are these used?
 const (
 	serviceName = "_mdnsdemo._tcp"
 	domain      = "local."
@@ -57,8 +58,6 @@ func (c *Cluster) init(outputCh chan string, ctx context.Context) {
 		log.Println("Joining an existing cluster...")
 		// Discover BootBox address via mDNS
 		serfAddress := receive(ctx)
-		log.Printf("Discovered BootBox at address: %s\n", serfAddress) // TODO: debug message
-		//joinAddr := "192.168.1.35:7946"
 		joinAddr := fmt.Sprintf("%s:%d", serfAddress, c.Config.BindPort)
 		_, err := serfAgent.Join([]string{joinAddr}, true)
 		if err != nil {
@@ -122,30 +121,21 @@ func requester(agent *serf.Serf) string {
 			Timeout:     5 * time.Second,
 		},
 	)
-
 	if err != nil {
-		log.Fatalf("Error executing query: %v", err)
+		log.Printf("Query failed: %v", err)
+		return ""
 	}
 
-	// --- Process Responses ---
-	fmt.Println("\n## Processing Query Responses:")
-
+	// Process Responses
 	for response := range resp.ResponseCh() {
 		token := string(response.Payload)
-
-		fmt.Printf("Response From Node: **%s**\n", response.From)
-
-		if token == "DENIED: Token already issued" {
-			fmt.Printf("   Status: **Denied!** Token was already claimed by another requester.\n")
-		} else {
-			fmt.Printf("   Status: **Success!** Received Token: **%s**\n", token)
-			return token
-		}
+		log.Printf("Token: %s From Node: %s\n", token, response.From)
+		return token
 	}
 	return ""
 }
 
-// broadcast() starts an mDNS service to advertise a message
+// broadcast() starts an mDNS service to advertise a message.
 func broadcast(ctx context.Context) {
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -181,7 +171,8 @@ func broadcast(ctx context.Context) {
 	log.Println("Stopping broadcast on received signal")
 }
 
-// receive() searches for mDNS services and prints discovered messages
+// receive() searches for mDNS services and returns the IP
+// address of the first matching service.
 func receive(ctx context.Context) string {
 	log.Printf("Searching for mDNS services: %s", serviceName)
 
@@ -189,9 +180,10 @@ func receive(ctx context.Context) string {
 	entriesCh := make(chan *mdns.ServiceEntry, 10)
 	complete := make(chan string, 1)
 
-	// Keep checking discovered entries for BootBox service
+	// Goroutine to process entries
 	go func() {
 		for entry := range entriesCh {
+			log.Printf("Discovered service: %s\n", entry.Name)
 			if entry.Info == "Provisioner_Bootbox_OTP" {
 				complete <- entry.AddrV4.String()
 			}
@@ -217,7 +209,7 @@ func receive(ctx context.Context) string {
 }
 
 // getPhysIPs() returns IP addresses for physical network interfaces,
-// filtering out loopback, virtual, and down interfaces
+// filtering out loopback, virtual, and down interfaces.
 func getPhysIPs() []net.IP {
 	interfaces, _ := net.Interfaces()
 	var result []net.IP
