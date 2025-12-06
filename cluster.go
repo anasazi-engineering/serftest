@@ -136,7 +136,7 @@ func requester(agent *serf.Serf) string {
 func broadcast(ctx context.Context) {
 	// Setup service info with TXT records containing our message
 	service, err := mdns.NewMDNSService(
-		"",
+		"BootBox",
 		serviceName,
 		domain,
 		"",
