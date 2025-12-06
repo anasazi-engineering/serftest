@@ -30,7 +30,6 @@ type Cluster struct {
 const (
 	serviceName = "provisioner-otp-service"
 	domain      = ""
-	port        = 8080
 )
 
 func (c *Cluster) init(outputCh chan string, ctx context.Context) {
@@ -151,7 +150,7 @@ func broadcast(ctx context.Context) {
 		serviceName,
 		domain,
 		"",
-		0,
+		8080,
 		getPhysIPs(),
 		[]string{message},
 	)
