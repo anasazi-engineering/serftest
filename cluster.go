@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/mdns"
@@ -65,7 +66,6 @@ func (c *Cluster) init(outputCh chan string, ctx context.Context) {
 	} else {
 		// Launch BootBox mDNS broadcaster
 		go broadcast(ctx)
-		fmt.Println("Running as BootBox...waiting for workers to join.") // TODO: debug message
 	}
 
 	// Wait a moment for the cluster to stabilize
@@ -182,6 +182,8 @@ func receive(ctx context.Context) string {
 	// Goroutine to process entries
 	go func() {
 		for entry := range entriesCh {
+			srvName := strings.Split(entry.Name, ".")
+			log.Println(srvName)
 			log.Printf("Discovered service: %s\n", entry.Name)
 			if entry.Info == "Provisioner_Bootbox_OTP" {
 				complete <- entry.AddrV4.String()
