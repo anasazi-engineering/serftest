@@ -28,15 +28,15 @@ type Cluster struct {
 
 // TODO: how are these used?
 const (
-	serviceName = "_mdnsdemo._tcp"
-	domain      = "local."
+	serviceName = "provisioner-otp-service"
+	domain      = ""
 	port        = 8080
 )
 
 func (c *Cluster) init(outputCh chan string, ctx context.Context) {
 	// Create Serf configuration
 	config := serf.DefaultConfig()
-	config.NodeName = c.Config.NodeName
+	config.NodeName = c.Config.NodeName                  // TODO: set to agent ID
 	config.MemberlistConfig.BindAddr = c.Config.BindAddr // Change to your machine's IP address or 127.0.0.1 for localhost
 	config.MemberlistConfig.BindPort = c.Config.BindPort // You use the same port when on different machines
 
@@ -94,7 +94,7 @@ func responder(eventCh chan serf.Event, ctx context.Context) {
 			if e.EventType() == serf.EventQuery {
 				query := e.(*serf.Query)
 				// We only respond to the specific query name
-				if query.Name == "provisioner-OTP" {
+				if query.Name == "provisioner-otp" {
 					log.Printf("Received query from %s", query.Name)
 
 					// TODO: get token from API server
@@ -109,7 +109,7 @@ func responder(eventCh chan serf.Event, ctx context.Context) {
 // requester() sends a query to the cluster requesting a one-time token
 func requester(agent *serf.Serf) string {
 	// Create query for OTP
-	queryName := "provisioner-OTP"
+	queryName := "provisioner-otp"
 	queryPayload := []byte("Gimme OTP!")
 
 	// Send the query to the entire cluster
@@ -151,7 +151,7 @@ func broadcast(ctx context.Context) {
 		serviceName,
 		domain,
 		"",
-		port,
+		0,
 		getPhysIPs(),
 		[]string{message},
 	)
