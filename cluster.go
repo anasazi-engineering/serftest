@@ -104,8 +104,9 @@ func responder(eventCh chan serf.Event, ctx context.Context) {
 					var payload ProvConfig
 					payload.BaseURL = "http://example.com"
 					payload.OTP = "123456"
-					token := fmt.Sprintf(`{"base_url":"%s","otp":"%s"}`, payload.BaseURL, payload.OTP)
-					query.Respond([]byte(token))
+					jsonPayload, _ := json.Marshal(payload)
+					log.Printf("Responding with payload: %s", string(jsonPayload))
+					query.Respond(jsonPayload)
 				}
 			}
 		}
