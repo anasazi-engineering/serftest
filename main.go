@@ -16,7 +16,6 @@ func main() {
 	// Command line flags
 	var c Cluster
 	bindPort := flag.Int("p", 7946, "Port to bind the Serf agent to")
-	bindAddr := flag.String("a", "127.0.0.1", "Address to bind the Serf agent to")
 	nodeName := flag.String("n", "bootbox001", "Name of the Serf agent")
 	nodeType := flag.String("t", "bootbox", "Type of the Serf agent (bootbox or worker)")
 	flag.Parse()
@@ -24,7 +23,6 @@ func main() {
 	// Configure cluster
 	c.Config = ClusterConfig{
 		BindPort: *bindPort, // TODO: change to configurable port
-		BindAddr: *bindAddr, // TODO: discover address
 		NodeName: *nodeName, // TODO: Use AgentID
 		NodeType: *nodeType, // TODO: from config
 	}

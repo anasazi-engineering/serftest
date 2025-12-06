@@ -14,7 +14,6 @@ import (
 
 type ClusterConfig struct {
 	BindPort   int
-	BindAddr   string
 	NodeName   string
 	NodeType   string
 	DeviceType string
@@ -33,9 +32,10 @@ const (
 
 func (c *Cluster) init(outputCh chan string, ctx context.Context) {
 	// Create Serf configuration
+	localInterfaces := getPhysIPs()
 	config := serf.DefaultConfig()
-	config.NodeName = c.Config.NodeName                  // TODO: set to agent ID
-	config.MemberlistConfig.BindAddr = c.Config.BindAddr // Change to your machine's IP address or 127.0.0.1 for localhost
+	config.NodeName = c.Config.NodeName // TODO: set to agent ID
+	config.MemberlistConfig.BindAddr = localInterfaces[0].String()
 	config.MemberlistConfig.BindPort = c.Config.BindPort // You use the same port when on different machines
 
 	// Channel stuff
