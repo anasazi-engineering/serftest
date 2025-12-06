@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"time"
 
@@ -27,7 +26,6 @@ type Cluster struct {
 	EventCh   chan serf.Event
 }
 
-// TODO: how are these used?
 const (
 	serviceName = "provisioner-otp-service"
 	domain      = ""
@@ -136,32 +134,24 @@ func requester(agent *serf.Serf) string {
 
 // broadcast() starts an mDNS service to advertise a message.
 func broadcast(ctx context.Context) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.Printf("Failed to get hostname: %v", err)
-		hostname = "unknown-host"
-	}
-
-	message := "Provisioner_Bootbox_OTP"
-
 	// Setup service info with TXT records containing our message
 	service, err := mdns.NewMDNSService(
-		hostname,
+		"",
 		serviceName,
 		domain,
 		"",
 		8080,
 		getPhysIPs(),
-		[]string{message},
+		[]string{""},
 	)
 	if err != nil {
-		log.Printf("Failed to create mDNS service: %v\n", err)
+		log.Fatalf("Failed to create mDNS service: %v\n", err)
 	}
 
 	// Create the mDNS server
 	server, err := mdns.NewServer(&mdns.Config{Zone: service})
 	if err != nil {
-		log.Printf("Failed to create mDNS server: %v\n", err)
+		log.Fatalf("Failed to create mDNS server: %v\n", err)
 	}
 	defer server.Shutdown()
 
@@ -173,9 +163,6 @@ func broadcast(ctx context.Context) {
 // receive() searches for mDNS services and returns the IP
 // address of the first matching service.
 func receive(ctx context.Context) string {
-	log.Printf("Searching for mDNS services: %s", serviceName)
-
-	// Create a channel to receive service entries
 	entriesCh := make(chan *mdns.ServiceEntry, 10)
 	complete := make(chan string, 1)
 
@@ -183,9 +170,8 @@ func receive(ctx context.Context) string {
 	go func() {
 		for entry := range entriesCh {
 			srvName := strings.Split(entry.Name, ".")
-			log.Println(srvName)
-			log.Printf("Discovered service: %s\n", entry.Name)
-			if entry.Info == "Provisioner_Bootbox_OTP" {
+			log.Printf("Discovered service: %s\n", srvName[1]) // TODO: debug
+			if srvName[1] == serviceName {
 				complete <- entry.AddrV4.String()
 			}
 		}
