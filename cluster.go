@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -25,12 +26,17 @@ type Cluster struct {
 	EventCh   chan serf.Event
 }
 
+type ProvConfig struct {
+	BaseURL string `json:"base_url"`
+	OTP     string `json:"otp"`
+}
+
 const (
 	serviceName = "provisioner-otp-service"
 	domain      = ""
 )
 
-func (c *Cluster) init(outputCh chan string, ctx context.Context) {
+func (c *Cluster) init(outputCh chan ProvConfig, ctx context.Context) {
 	// Create Serf configuration
 	localInterfaces := getPhysIPs()
 	config := serf.DefaultConfig()
@@ -95,7 +101,10 @@ func responder(eventCh chan serf.Event, ctx context.Context) {
 					log.Printf("Received query from %s", query.Name)
 
 					// TODO: get token from API server
-					token := "ONE-TIME-TOKEN-12345"
+					var payload ProvConfig
+					payload.BaseURL = "http://example.com"
+					payload.OTP = "123456"
+					token := fmt.Sprintf(`{"base_url":"%s","otp":"%s"}`, payload.BaseURL, payload.OTP)
 					query.Respond([]byte(token))
 				}
 			}
@@ -104,7 +113,7 @@ func responder(eventCh chan serf.Event, ctx context.Context) {
 }
 
 // requester() sends a query to the cluster requesting a one-time token
-func requester(agent *serf.Serf) string {
+func requester(agent *serf.Serf) ProvConfig {
 	// Create query for OTP
 	queryName := "provisioner-otp"
 	queryPayload := []byte("Gimme OTP!")
@@ -120,16 +129,20 @@ func requester(agent *serf.Serf) string {
 	)
 	if err != nil {
 		log.Printf("Query failed: %v", err)
-		return ""
+		return ProvConfig{}
 	}
 
 	// Process Responses
 	for response := range resp.ResponseCh() {
-		token := string(response.Payload)
-		log.Printf("Token: %s From Node: %s\n", token, response.From)
-		return token
+		var payload ProvConfig
+		err := json.Unmarshal(response.Payload, &payload)
+		if err != nil {
+			log.Printf("Failed to unmarshal response payload: %v", err)
+			continue
+		}
+		return payload
 	}
-	return ""
+	return ProvConfig{}
 }
 
 // broadcast() starts an mDNS service to advertise a message.

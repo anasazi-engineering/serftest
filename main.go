@@ -28,12 +28,12 @@ func main() {
 	}
 
 	// Start and/or join cluster
-	outputCh := make(chan string, 1)
+	outputCh := make(chan ProvConfig, 1)
 	c.init(outputCh, ctx)
 	if c.Config.NodeType == "worker" {
 		fmt.Println("Worker node running...waiting for token response")
-		token := <-outputCh // Worker blocks until it receives the token
-		fmt.Printf("Worker node received token: %s\n", token)
+		payload := <-outputCh // Worker blocks until it receives the token
+		fmt.Printf("Worker node received URL: %s, Token: %s\n", payload.BaseURL, payload.OTP)
 	}
 
 	// The End
